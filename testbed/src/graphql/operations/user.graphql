@@ -1,0 +1,37 @@
+query GetUser($id: ID!) {
+  user(id: $id) {
+    ... on User {
+      id
+      email
+      name
+      createdAt
+      updatedAt
+      lastLoginAt
+      metadata
+      tags
+      role
+    }
+    ... on UserNotFound {
+      message
+    }
+  }
+}
+
+query GetUsers {
+  users {
+    id
+    email
+    name
+    createdAt
+    role
+  }
+}
+
+mutation CreateUser($email: String!, $name: String) {
+  createUser(email: $email, name: $name) {
+    id
+    email
+    name
+    createdAt
+  }
+}

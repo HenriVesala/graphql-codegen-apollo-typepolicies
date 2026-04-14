@@ -1,0 +1,131 @@
+scalar DateTime
+scalar JSON
+
+"""
+Node interface for types with an ID
+"""
+interface Node {
+  id: ID!
+}
+
+"""
+Media interface for different media types
+"""
+interface Media {
+  id: ID!
+  url: String!
+  mimeType: String!
+  size: Int!
+  createdAt: String!
+}
+
+type Image implements Node & Media {
+  id: ID!
+  url: String!
+  mimeType: String!
+  size: Int!
+  createdAt: String!
+  width: Int!
+  height: Int!
+  alt: String
+}
+
+type Video implements Node & Media {
+  id: ID!
+  url: String!
+  mimeType: String!
+  size: Int!
+  createdAt: String!
+  duration: Int!
+  thumbnail: String
+  resolution: String
+}
+
+type Document implements Node & Media {
+  id: ID!
+  url: String!
+  mimeType: String!
+  size: Int!
+  createdAt: String!
+  pageCount: Int
+  title: String!
+}
+
+type User implements Node {
+  id: ID!
+  email: String!
+  name: String
+  createdAt: String!
+  updatedAt: String
+  lastLoginAt: String
+  metadata: String
+  tags: [String!]!
+  role: UserRole!
+  avatar: Image
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  GUEST
+}
+
+type Post implements Node {
+  id: ID!
+  title: String!
+  content: String!
+  createdAt: String!
+  publishedAt: String
+  author: User!
+  viewCount: Int!
+  tags: [String!]!
+  attachments: [Media!]!
+}
+
+type Comment implements Node {
+  id: ID!
+  text: String!
+  createdAt: String!
+  author: User!
+  post: Post!
+}
+
+type UserNotFound {
+  message: String!
+}
+
+type PostNotFound {
+  message: String!
+}
+
+union UserResponse = User | UserNotFound
+
+union PostResponse = Post | PostNotFound
+
+type Query {
+  node(id: ID!): Node
+  user(id: ID!): UserResponse
+  users: [User!]!
+  post(id: ID!): PostResponse
+  posts: [Post!]!
+  comments(postId: ID!): [Comment!]!
+
+  """
+  Get media by ID (returns Image, Video, or Document)
+  """
+  media(id: ID!): Media
+
+  """
+  Get all media items
+  """
+  allMedia: [Media!]!
+}
+
+type Mutation {
+  createUser(email: String!, name: String): User!
+  updateUser(id: ID!, name: String): User
+  createPost(title: String!, content: String!, authorId: ID!): Post!
+  uploadImage(url: String!, width: Int!, height: Int!): Image!
+  uploadVideo(url: String!, duration: Int!): Video!
+  uploadDocument(url: String!, title: String!): Document!
+}

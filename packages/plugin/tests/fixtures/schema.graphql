@@ -1,0 +1,25 @@
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  createdAt: String!
+  updatedAt: String
+  deletedAt: String
+  lastLogin: String
+  metadata: String
+  count: Int!
+}
+
+type Post {
+  id: ID!
+  title: String!
+  content: String!
+  publishedAt: String
+  tags: [String!]!
+  categories: [String!]!
+}
+
+type Query {
+  user(id: ID!): User
+  post(id: ID!): Post
+}

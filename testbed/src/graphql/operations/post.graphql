@@ -1,0 +1,44 @@
+query GetPost($id: ID!) {
+  post(id: $id) {
+    ... on Post {
+      id
+      title
+      content
+      createdAt
+      publishedAt
+      viewCount
+      tags
+      author {
+        id
+        name
+        email
+      }
+    }
+    ... on PostNotFound {
+      message
+    }
+  }
+}
+
+query GetPosts {
+  posts {
+    id
+    title
+    createdAt
+    publishedAt
+    viewCount
+    author {
+      id
+      name
+    }
+  }
+}
+
+mutation CreatePost($title: String!, $content: String!, $authorId: ID!) {
+  createPost(title: $title, content: $content, authorId: $authorId) {
+    id
+    title
+    content
+    publishedAt
+  }
+}

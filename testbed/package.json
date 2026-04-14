@@ -1,0 +1,21 @@
+{
+  "name": "testbed",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "codegen": "graphql-codegen",
+    "codegen:watch": "graphql-codegen --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@apollo/client": "^3.11.0",
+    "graphql": "^16.9.0"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^5.0.0",
+    "@graphql-codegen/typescript": "^4.1.0",
+    "@graphql-codegen/typescript-operations": "^4.3.0",
+    "graphql-codegen-apollo-typepolicies": "*",
+    "typescript": "^5.3.0"
+  }
+}

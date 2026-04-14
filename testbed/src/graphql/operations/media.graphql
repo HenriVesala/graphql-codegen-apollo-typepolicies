@@ -1,0 +1,45 @@
+# Operations using Media interface
+
+query GetMedia($id: ID!) {
+  media(id: $id) {
+    id
+    url
+    mimeType
+    size
+    createdAt
+    ... on Image {
+      width
+      height
+      alt
+    }
+    ... on Video {
+      duration
+      thumbnail
+      resolution
+    }
+    ... on Document {
+      pageCount
+      title
+    }
+  }
+}
+
+query GetAllMedia {
+  allMedia {
+    id
+    url
+    mimeType
+    size
+    createdAt
+    ... on Image {
+      width
+      height
+    }
+    ... on Video {
+      duration
+    }
+    ... on Document {
+      title
+    }
+  }
+}

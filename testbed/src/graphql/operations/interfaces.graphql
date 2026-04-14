@@ -1,0 +1,43 @@
+# Operations using GraphQL interfaces (Node interface)
+
+query GetNode($id: ID!) {
+  node(id: $id) {
+    id
+    ... on User {
+      email
+      name
+      createdAt
+      role
+    }
+    ... on Post {
+      title
+      content
+      createdAt
+      publishedAt
+      viewCount
+    }
+    ... on Comment {
+      text
+      createdAt
+    }
+    ... on Image {
+      url
+      size
+      createdAt
+      width
+      height
+    }
+    ... on Video {
+      url
+      size
+      createdAt
+      duration
+    }
+    ... on Document {
+      url
+      size
+      createdAt
+      title
+    }
+  }
+}
