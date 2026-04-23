@@ -315,6 +315,28 @@ describe('Type Override Generator', () => {
     });
   });
 
+  describe('schema validation', () => {
+    it('should not generate type definition for types not in schema', () => {
+      const transformations = new Map<string, TypeTransformation>([
+        [
+          'NonExistent.createdAt',
+          {
+            typeName: 'NonExistent',
+            fieldName: 'createdAt',
+            transformedType: 'Date',
+            isNullable: false,
+            isArray: false,
+          },
+        ],
+      ]);
+
+      const output = generateTypeOverrides(schema, transformations, defaultConfig);
+
+      // The type definition should be skipped
+      expect(output).not.toContain('export type NonExistentWithTypePolicies = {');
+    });
+  });
+
   describe('non-transformed fields', () => {
     it('should reference base type for non-transformed fields', () => {
       const transformations = new Map<string, TypeTransformation>([

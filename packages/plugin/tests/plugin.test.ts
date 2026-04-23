@@ -271,6 +271,87 @@ describe('Plugin Integration', () => {
     expect(output).toContain('DeepWithTypePolicies<T[K]>');
   });
 
+  it('should warn when type policy references a type not in schema', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      const output = pluginFromSource(`
+        export const typePolicies = {
+          NonExistentType: {
+            fields: {
+              foo: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      expect(consoleSpy.warn.some(w => w.includes('NonExistentType'))).toBe(true);
+      // Should still produce output (not crash)
+      expect(output).toBeDefined();
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should warn when field is not found on schema type', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      pluginFromSource(`
+        export const typePolicies = {
+          User: {
+            fields: {
+              nonExistentField: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      expect(consoleSpy.warn.some(w => w.includes('nonExistentField'))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should report parser warnings through plugin', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      pluginFromSource(`
+        const FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      expect(consoleSpy.warn.some(w => w.includes('Computed property name'))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
   it('should handle shorthand method syntax', () => {
     const output = pluginFromSource(`
       export const typePolicies = {

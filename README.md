@@ -84,5 +84,4 @@ npm run codegen
 ```
 
 ## License
-
 MIT
