@@ -721,6 +721,92 @@ describe('TypePolicy Parser', () => {
     });
   });
 
+  describe('function expression syntax', () => {
+    it('should extract types from function expression with annotation', () => {
+      const result = parseTypePoliciesFromSource(`
+        export const typePolicies = {
+          User: {
+            fields: {
+              createdAt: {
+                read: function(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `, 'typePolicies', opts);
+
+      expect(result.errors).toHaveLength(0);
+      const createdAt = result.transformations.get('User.createdAt');
+      expect(createdAt?.transformedType).toBe('Date');
+    });
+
+    it('should infer types from function expression without annotation', () => {
+      const result = parseTypePoliciesFromSource(`
+        export const typePolicies = {
+          User: {
+            fields: {
+              createdAt: {
+                read: function(existing: string) {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `, 'typePolicies', opts);
+
+      expect(result.errors).toHaveLength(0);
+      const createdAt = result.transformations.get('User.createdAt');
+      expect(createdAt?.transformedType).toBe('Date');
+    });
+
+    it('should error on function expression without annotation in require-annotations mode', () => {
+      const result = parseTypePoliciesFromSource(`
+        export const typePolicies = {
+          User: {
+            fields: {
+              createdAt: {
+                read: function(existing: string) {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `, 'typePolicies', { typeInference: 'require-annotations', debug: false });
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].message).toContain('require-annotations');
+    });
+  });
+
+  describe('spread operator edge cases', () => {
+    it('should warn when spread initializer is not an object literal', () => {
+      const result = parseTypePoliciesFromSource(
+        `
+        import { dynamicPolicies } from './dynamicPolicies';
+        export const typePolicies = {
+          ...dynamicPolicies,
+        };
+        `,
+        'typePolicies',
+        opts,
+        '/virtual/typePolicies.ts',
+        new Map([
+          ['/virtual/dynamicPolicies.ts', `
+            export const dynamicPolicies = getSomePolicies();
+            function getSomePolicies() { return {}; }
+          `],
+        ])
+      );
+
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.warnings[0]).toContain('not an object literal');
+    });
+  });
+
   describe('error handling', () => {
     it('should throw when file does not exist', () => {
       expect(() =>
