@@ -8,4 +8,4 @@ When `keyFields` is specified in a type policy (e.g., `keyFields: ['sku']`), Apo
 
 ### TypedDocumentNode integration helper
 
-`DeepWithTypePolicies` already handles operation result types, so users can manually wrap query types. A further step would be a utility that wraps `TypedDocumentNode<TData, TVariables>` so that `useQuery` returns transformed types automatically without manual wrapping at every call site. This is more of an Apollo Client hook wrapper pattern than a codegen plugin concern — worth considering only if there's clear demand.
+`WithTypePolicies` already handles operation result types, so users can manually wrap query types. A further step would be a utility that wraps `TypedDocumentNode<TData, TVariables>` so that `useQuery` returns transformed types automatically without manual wrapping at every call site. This is more of an Apollo Client hook wrapper pattern than a codegen plugin concern — worth considering only if there's clear demand.

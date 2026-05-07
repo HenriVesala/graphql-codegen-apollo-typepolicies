@@ -34,9 +34,6 @@ export interface TypeTransformation {
   };
 }
 
-/**
- * Parse error information
- */
 export interface ParseError {
   typeName: string;
   fieldName: string;
@@ -48,18 +45,12 @@ export interface ParseError {
   };
 }
 
-/**
- * Result of parsing type policies
- */
 export interface ParseResult {
   transformations: Map<string, TypeTransformation>;
   errors: ParseError[];
   warnings: string[];
 }
 
-/**
- * Options for parsing
- */
 interface ParseOptions {
   typeInference: 'infer' | 'require-annotations';
   debug: boolean;

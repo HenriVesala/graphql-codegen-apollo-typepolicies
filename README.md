@@ -65,6 +65,78 @@ export default config;
 - **`infer`** (default) — Uses explicit return type annotations when present, otherwise infers the type from TypeScript. Errors if inference fails.
 - **`require-annotations`** — All `read` functions must have explicit return type annotations. Throws an error if any are missing.
 
+## Using the generated types
+
+Given this type policy:
+
+```ts
+// src/apollo/typePolicies.ts
+export const typePolicies = {
+  User: {
+    fields: {
+      createdAt: {
+        read(existing: string): Date {
+          return new Date(existing);
+        },
+      },
+    },
+  },
+};
+```
+
+The plugin emits these types into your generated file (alongside the standard codegen output):
+
+```ts
+// src/generated/graphql.ts
+export type UserWithTypePolicies = {
+  __typename?: 'User';
+  createdAt: Date;          // <-- post-transform type
+  id: User['id'];
+  name: User['name'];
+  // ...all other User fields, untransformed
+};
+
+export type WithTypePolicies<T>   // applies overlays throughout T
+```
+
+### `WithTypePolicies<T>` — wrap any value coming out of the cache
+
+`WithTypePolicies<T>` walks `T` recursively, swapping in the post-transform type wherever it sees a `__typename` that has a registered policy. It preserves the original selection (no field widening) and recurses into nested objects and arrays — so it works for any shape the cache hands you.
+
+The two most common usages:
+
+**Wrapping a `useQuery` result:**
+
+```tsx
+import { useQuery } from '@apollo/client';
+import { GetUserQuery, GetUserQueryVariables, WithTypePolicies } from './generated/graphql';
+
+function UserCard({ id }: { id: string }) {
+  const { data } = useQuery<GetUserQuery, GetUserQueryVariables>(GET_USER, { variables: { id } });
+  const user = (data as WithTypePolicies<GetUserQuery>)?.user;
+  //    ^? user.createdAt is Date, not string
+  return <div>{user?.createdAt.toLocaleDateString()}</div>;
+}
+```
+
+**Wrapping a `cache.readFragment` result:**
+
+```ts
+const fragment = cache.readFragment<User>({ id: 'User:1', fragment: USER_FIELDS });
+const user = fragment as WithTypePolicies<User>;
+//    ^? user.createdAt is Date
+```
+
+### Type-only access via `TypePolicyTransformations`
+
+The plugin also exports a flat map keyed by `"TypeName.fieldName"` if you need the post-transform type of a single field directly:
+
+```ts
+import { TypePolicyTransformations } from './generated/graphql';
+
+type CreatedAt = TypePolicyTransformations['User.createdAt']; // Date
+```
+
 ## Development
 
 This is a monorepo using npm workspaces.
@@ -83,5 +155,18 @@ npm run test
 npm run codegen
 ```
 
+## Supported policy targets
+
+| Target | Supported | Notes |
+|--------|-----------|-------|
+| Object types (`type User`) | Yes | Generates a `<Type>WithTypePolicies` overlay. |
+| Interface types (`interface Node`) | Yes | The transformation is fanned out to every concrete object type that implements the interface, mirroring Apollo Client's runtime behavior. A concrete-type policy on the same field overrides the interface fan-out. |
+| Union types (`union Foo = A \| B`) | No | Apollo doesn't apply field reads across union members (they don't share fields). The plugin emits a warning and skips the entry. |
+
+## Supported policy features
+
+The plugin analyzes only `read` functions. Other type policy options (`merge`, `keyFields`, `keyArgs`) are not parsed and don't affect the generated TypeScript. See [ROADMAP.md](./ROADMAP.md) for planned work — including `keyFields`-driven type narrowing.
+
 ## License
+
 MIT

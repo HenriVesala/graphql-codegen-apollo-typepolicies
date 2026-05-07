@@ -248,27 +248,10 @@ describe('Plugin Integration', () => {
     `);
 
     expect(output).toContain('export type WithTypePolicies<T>');
-  });
-
-  it('should generate DeepWithTypePolicies utility type', () => {
-    const output = pluginFromSource(`
-      export const typePolicies = {
-        User: {
-          fields: {
-            createdAt: {
-              read(existing: string): Date {
-                return new Date(existing);
-              },
-            },
-          },
-        },
-      };
-    `);
-
-    expect(output).toContain('export type DeepWithTypePolicies<T>');
     expect(output).toContain("T extends { __typename?: 'User' }");
-    expect(output).toContain("K extends 'createdAt' ? UserWithTypePolicies[K]");
-    expect(output).toContain('DeepWithTypePolicies<T[K]>');
+    expect(output).toContain("K extends 'createdAt' | 'name' ? UserWithTypePolicies[K]");
+    expect(output).toContain('WithTypePolicies<T[K]>');
+    expect(output).not.toContain('DeepWithTypePolicies');
   });
 
   it('should warn when type policy references a type not in schema', () => {
@@ -347,6 +330,103 @@ describe('Plugin Integration', () => {
       `);
 
       expect(consoleSpy.warn.some(w => w.includes('Computed property name'))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should fan an interface policy out to every implementing type', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      const output = pluginFromSource(`
+        export const typePolicies = {
+          Node: {
+            fields: {
+              displayName: {
+                read(existing: string): string {
+                  return existing.toUpperCase();
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      // Interface policies are now supported — no "not an object" warning.
+      expect(consoleSpy.warn.some(w => w.includes('Node') && w.includes('not an object'))).toBe(false);
+
+      // No NodeWithTypePolicies — the interface itself never gets its own overlay.
+      expect(output).not.toContain('NodeWithTypePolicies');
+
+      // Both implementing types pick up the transformation.
+      expect(output).toContain('CommentWithTypePolicies');
+      expect(output).toContain('ArticleWithTypePolicies');
+      expect(output).toContain("'Comment.displayName'");
+      expect(output).toContain("'Article.displayName'");
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should warn and skip emission when policy targets a union type', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      const output = pluginFromSource(`
+        export const typePolicies = {
+          SearchResult: {
+            fields: {
+              placeholder: {
+                read(): string {
+                  return '';
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      expect(consoleSpy.warn.some(w => w.includes('SearchResult') && w.includes('not an object or interface type'))).toBe(true);
+      expect(output).not.toContain('SearchResultWithTypePolicies');
+      expect(output).not.toContain("'SearchResult.placeholder'");
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should produce self-consistent output for interface policies', () => {
+    const origWarn = console.warn;
+    console.warn = () => {};
+
+    try {
+      const output = pluginFromSource(`
+        export const typePolicies = {
+          Node: {
+            fields: {
+              displayName: {
+                read(existing: string): string {
+                  return existing.toUpperCase();
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      const referenced = new Set(
+        Array.from(output.matchAll(/(\w+)WithTypePolicies/g), m => m[1])
+      );
+      const declared = new Set(
+        Array.from(output.matchAll(/export type (\w+)WithTypePolicies\b/g), m => m[1])
+      );
+      for (const name of referenced) {
+        expect(declared.has(name)).toBe(true);
+      }
     } finally {
       console.warn = origWarn;
     }

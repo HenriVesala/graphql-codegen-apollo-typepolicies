@@ -1,5 +1,5 @@
 import { PluginFunction, Types } from '@graphql-codegen/plugin-helpers';
-import { GraphQLSchema } from 'graphql';
+import { GraphQLSchema, isObjectType, isInterfaceType } from 'graphql';
 import { TypePoliciesPluginConfig, resolveConfig } from './config';
 import { parseTypePolicies, TypeTransformation } from './parser';
 import { generateTypeOverrides } from './generator';
@@ -108,9 +108,9 @@ function validateTransformations(
       continue;
     }
 
-    if (!('getFields' in type)) {
+    if (!isObjectType(type) && !isInterfaceType(type)) {
       console.warn(
-        `[graphql-codegen-apollo-typepolicies] Warning: Type "${transform.typeName}" is not an object type`
+        `[graphql-codegen-apollo-typepolicies] Warning: Type "${transform.typeName}" is not an object or interface type`
       );
       continue;
     }
