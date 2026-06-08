@@ -1,18 +1,16 @@
+import path from 'node:path';
 import {
-  Project,
-  SourceFile,
-  SyntaxKind,
+  type ArrowFunction,
+  type FunctionExpression,
+  type MethodDeclaration,
   Node,
-  PropertyAssignment,
-  MethodDeclaration,
-  ArrowFunction,
-  FunctionExpression,
-  Type,
-  ShorthandPropertyAssignment,
-  SpreadAssignment,
-  ObjectLiteralExpression,
+  type ObjectLiteralExpression,
+  Project,
+  type PropertyAssignment,
+  type SourceFile,
+  type SpreadAssignment,
+  type Type,
 } from 'ts-morph';
-import path from 'path';
 
 /**
  * Represents a type transformation extracted from a type policy read function
@@ -20,13 +18,10 @@ import path from 'path';
 export interface TypeTransformation {
   typeName: string;
   fieldName: string;
-  /** The transformed return type as a string */
   transformedType: string;
   isNullable: boolean;
   isArray: boolean;
-  /** The element type if isArray is true */
   arrayElementType?: string;
-  /** Source location for error reporting */
   location?: {
     filePath: string;
     line: number;
@@ -34,9 +29,6 @@ export interface TypeTransformation {
   };
 }
 
-/**
- * Parse error information
- */
 export interface ParseError {
   typeName: string;
   fieldName: string;
@@ -48,18 +40,12 @@ export interface ParseError {
   };
 }
 
-/**
- * Result of parsing type policies
- */
 export interface ParseResult {
   transformations: Map<string, TypeTransformation>;
   errors: ParseError[];
   warnings: string[];
 }
 
-/**
- * Options for parsing
- */
 interface ParseOptions {
   typeInference: 'infer' | 'require-annotations';
   debug: boolean;
@@ -191,7 +177,6 @@ function parseSourceFile(
 
   processTypeProperties(initializer, context);
 
-  // Log warnings
   if (context.warnings.length > 0 && options.debug) {
     for (const warning of context.warnings) {
       console.warn(`[warning] ${warning}`);
@@ -206,7 +191,7 @@ function parseSourceFile(
 }
 
 /**
- * Walk top-level type entries (e.g., User, Post) in an object literal.
+ * Walk top-level type entries in an object literal.
  * Recursively resolves spread operators.
  *
  * Properties are processed in source order (as returned by ts-morph's getProperties()),
@@ -235,7 +220,6 @@ function processTypeProperties(
     const typeValue = typeProperty.getInitializer();
     if (!typeValue || !Node.isObjectLiteralExpression(typeValue)) continue;
 
-    // Find the 'fields' property
     const fieldsProperty = typeValue.getProperty('fields');
     if (!fieldsProperty || !Node.isPropertyAssignment(fieldsProperty)) continue;
 
@@ -267,7 +251,6 @@ function processFieldProperties(
 
     const nodeFilePath = fieldProperty.getSourceFile().getFilePath();
 
-    // Handle shorthand method syntax: { fieldName(existing) { ... } }
     if (Node.isMethodDeclaration(fieldProperty)) {
       const fieldName = fieldProperty.getName();
       try {
@@ -338,7 +321,6 @@ function processFieldProperties(
  *
  * @param spreadAncestry - Tracks the current resolution chain to detect circular references.
  *   Scoped per chain so the same variable can be spread in independent contexts
- *   (e.g., `...sharedDateFields` used in both User.fields and Post.fields).
  */
 function resolveSpreadToObjectLiteral(
   spreadNode: SpreadAssignment,
@@ -349,7 +331,6 @@ function resolveSpreadToObjectLiteral(
   const line = spreadNode.getStartLineNumber();
   const filePath = spreadNode.getSourceFile().getFilePath();
 
-  // Only handle simple identifiers (not function calls, property accesses, etc.)
   if (!Node.isIdentifier(expr)) {
     context.warnings.push(
       `[${filePath}:${line}] Cannot resolve spread expression '...${expr.getText()}' (not a simple identifier)`
@@ -429,13 +410,11 @@ function unwrapExpression(node: Node): Node {
  * Find the typePolicies variable declaration in the source file
  */
 function findTypePoliciesDeclaration(sourceFile: SourceFile, exportName: string) {
-  // Try to find as a variable declaration
   const variableDeclaration = sourceFile.getVariableDeclaration(exportName);
   if (variableDeclaration) {
     return variableDeclaration;
   }
 
-  // Try to find in export declarations
   for (const exportDecl of sourceFile.getExportedDeclarations().values()) {
     for (const decl of exportDecl) {
       if (Node.isVariableDeclaration(decl) && decl.getName() === exportName) {
@@ -465,7 +444,6 @@ function getPropertyName(
     return nameNode.getLiteralValue();
   }
 
-  // Computed property names are not supported
   if (Node.isComputedPropertyName(nameNode)) {
     const line = property.getStartLineNumber();
     warnings.push(
@@ -495,17 +473,14 @@ function extractFieldTransformation(
 
   if (!fieldValue) return null;
 
-  // Case 1: Field policy object - { fieldName: { read(existing) { ... } } }
   if (Node.isObjectLiteralExpression(fieldValue)) {
     const readProperty = fieldValue.getProperty('read');
     if (!readProperty) return null;
 
-    // Read is a method: { read(existing) { return ...; } }
     if (Node.isMethodDeclaration(readProperty)) {
       return extractFromMethod(typeName, fieldName, readProperty, options, filePath);
     }
 
-    // Read is a property assignment: { read: (existing) => ... } or { read: function(existing) { ... } }
     if (Node.isPropertyAssignment(readProperty)) {
       const readValue = readProperty.getInitializer();
 
@@ -536,7 +511,6 @@ function extractFromMethod(
   const line = method.getStartLineNumber();
 
   if (returnTypeNode) {
-    // Has explicit return type annotation
     const returnType = method.getReturnType();
     return createTransformation(typeName, fieldName, returnType, filePath, line);
   }
@@ -567,7 +541,6 @@ function extractFromArrowFunction(
   const line = func.getStartLineNumber();
 
   if (returnTypeNode) {
-    // Has explicit return type annotation
     const returnType = func.getReturnType();
     return createTransformation(typeName, fieldName, returnType, filePath, line);
   }
@@ -619,11 +592,9 @@ function extractFromFunctionExpression(
  * This function extracts just the type name.
  */
 function sanitizeTypeText(typeText: string): string {
-  // Handle import("...").TypeName pattern
   const importPattern = /import\s*\([^)]+\)\s*\.\s*/g;
   let sanitized = typeText.replace(importPattern, '');
 
-  // Handle multiple levels of nesting
   while (importPattern.test(sanitized)) {
     sanitized = sanitized.replace(importPattern, '');
   }

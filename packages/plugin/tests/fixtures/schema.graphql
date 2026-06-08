@@ -1,3 +1,6 @@
+# GraphQL schema for testing purposes.
+# schema tries to emulate somewhat realistic schema
+
 type User {
   id: ID!
   name: String!
@@ -19,7 +22,28 @@ type Post {
   categories: [String!]!
 }
 
+interface Node {
+  id: ID!
+  displayName: String!
+}
+
+type Comment implements Node {
+  id: ID!
+  displayName: String!
+  body: String!
+}
+
+type Article implements Node {
+  id: ID!
+  displayName: String!
+  body: String!
+}
+
+union SearchResult = User | Post | Comment
+
 type Query {
   user(id: ID!): User
   post(id: ID!): Post
+  node(id: ID!): Node
+  search(term: String!): [SearchResult!]!
 }

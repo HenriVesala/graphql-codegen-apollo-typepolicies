@@ -19,9 +19,9 @@
  * @packageDocumentation
  */
 
-export { plugin } from './plugin';
-export { resolveConfig, defaultConfig } from './config';
-export type { TypePoliciesPluginConfig, ResolvedTypePoliciesPluginConfig } from './config';
-export { parseTypePolicies } from './parser';
-export type { TypeTransformation, ParseResult, ParseError } from './parser';
+export type { ResolvedTypePoliciesPluginConfig, TypePoliciesPluginConfig } from './config';
+export { defaultConfig, resolveConfig } from './config';
 export { generateTypeOverrides } from './generator';
+export type { ParseError, ParseResult, TypeTransformation } from './parser';
+export { parseTypePolicies } from './parser';
+export { plugin } from './plugin';

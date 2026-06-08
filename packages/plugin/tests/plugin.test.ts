@@ -1,18 +1,20 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { buildSchema } from 'graphql';
+import { afterEach, describe, expect, it } from 'vitest';
 import { plugin } from '../src';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
 
 const schemaSource = fs.readFileSync(path.join(__dirname, 'fixtures', 'schema.graphql'), 'utf-8');
 const schema = buildSchema(schemaSource);
 
-// Helper: write source to a temp file, run plugin, clean up
 const tmpFiles: string[] = [];
 
 function pluginFromSource(source: string, config: Record<string, unknown> = {}): string {
-  const tmpPath = path.join(os.tmpdir(), `test-policy-${Date.now()}-${Math.random().toString(36).slice(2)}.ts`);
+  const tmpPath = path.join(
+    os.tmpdir(),
+    `test-policy-${Date.now()}-${Math.random().toString(36).slice(2)}.ts`
+  );
   fs.writeFileSync(tmpPath, source);
   tmpFiles.push(tmpPath);
   return plugin(schema, [], {
@@ -24,7 +26,9 @@ function pluginFromSource(source: string, config: Record<string, unknown> = {}):
 
 afterEach(() => {
   for (const f of tmpFiles) {
-    try { fs.unlinkSync(f); } catch {}
+    try {
+      fs.unlinkSync(f);
+    } catch {}
   }
   tmpFiles.length = 0;
 });
@@ -56,7 +60,8 @@ describe('Plugin Integration', () => {
   });
 
   it('should handle nullable types correctly', () => {
-    const output = pluginFromSource(`
+    const output = pluginFromSource(
+      `
       export const typePolicies = {
         User: {
           fields: {
@@ -73,7 +78,9 @@ describe('Plugin Integration', () => {
           },
         },
       };
-    `, { preserveNullability: true });
+    `,
+      { preserveNullability: true }
+    );
 
     expect(output).toContain('updatedAt: Date | null');
   });
@@ -101,7 +108,8 @@ describe('Plugin Integration', () => {
   });
 
   it('should infer types when typeInference is "infer"', () => {
-    const output = pluginFromSource(`
+    const output = pluginFromSource(
+      `
       export const typePolicies = {
         User: {
           fields: {
@@ -118,14 +126,17 @@ describe('Plugin Integration', () => {
           },
         },
       };
-    `, { typeInference: 'infer' });
+    `,
+      { typeInference: 'infer' }
+    );
 
     expect(output).toContain('createdAt: Date');
   });
 
   it('should throw when typeInference is "require-annotations" and annotations are missing', () => {
     expect(() =>
-      pluginFromSource(`
+      pluginFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -137,7 +148,9 @@ describe('Plugin Integration', () => {
             },
           },
         };
-      `, { typeInference: 'require-annotations' })
+      `,
+        { typeInference: 'require-annotations' }
+      )
     ).toThrow('require-annotations');
   });
 
@@ -248,27 +261,10 @@ describe('Plugin Integration', () => {
     `);
 
     expect(output).toContain('export type WithTypePolicies<T>');
-  });
-
-  it('should generate DeepWithTypePolicies utility type', () => {
-    const output = pluginFromSource(`
-      export const typePolicies = {
-        User: {
-          fields: {
-            createdAt: {
-              read(existing: string): Date {
-                return new Date(existing);
-              },
-            },
-          },
-        },
-      };
-    `);
-
-    expect(output).toContain('export type DeepWithTypePolicies<T>');
     expect(output).toContain("T extends { __typename?: 'User' }");
-    expect(output).toContain("K extends 'createdAt' ? UserWithTypePolicies[K]");
-    expect(output).toContain('DeepWithTypePolicies<T[K]>');
+    expect(output).toContain("K extends 'createdAt' | 'name' ? UserWithTypePolicies[K]");
+    expect(output).toContain('WithTypePolicies<T[K]>');
+    expect(output).not.toContain('DeepWithTypePolicies');
   });
 
   it('should warn when type policy references a type not in schema', () => {
@@ -291,8 +287,7 @@ describe('Plugin Integration', () => {
         };
       `);
 
-      expect(consoleSpy.warn.some(w => w.includes('NonExistentType'))).toBe(true);
-      // Should still produce output (not crash)
+      expect(consoleSpy.warn.some((w) => w.includes('NonExistentType'))).toBe(true);
       expect(output).toBeDefined();
     } finally {
       console.warn = origWarn;
@@ -319,7 +314,7 @@ describe('Plugin Integration', () => {
         };
       `);
 
-      expect(consoleSpy.warn.some(w => w.includes('nonExistentField'))).toBe(true);
+      expect(consoleSpy.warn.some((w) => w.includes('nonExistentField'))).toBe(true);
     } finally {
       console.warn = origWarn;
     }
@@ -346,7 +341,107 @@ describe('Plugin Integration', () => {
         };
       `);
 
-      expect(consoleSpy.warn.some(w => w.includes('Computed property name'))).toBe(true);
+      expect(consoleSpy.warn.some((w) => w.includes('Computed property name'))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should fan an interface policy out to every implementing type', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      const output = pluginFromSource(`
+        export const typePolicies = {
+          Node: {
+            fields: {
+              displayName: {
+                read(existing: string): string {
+                  return existing.toUpperCase();
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      expect(consoleSpy.warn.some((w) => w.includes('Node') && w.includes('not an object'))).toBe(
+        false
+      );
+
+      expect(output).not.toContain('NodeWithTypePolicies');
+
+      expect(output).toContain('CommentWithTypePolicies');
+      expect(output).toContain('ArticleWithTypePolicies');
+      expect(output).toContain("'Comment.displayName'");
+      expect(output).toContain("'Article.displayName'");
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should warn and skip emission when policy targets a union type', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      const output = pluginFromSource(`
+        export const typePolicies = {
+          SearchResult: {
+            fields: {
+              placeholder: {
+                read(): string {
+                  return '';
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      expect(
+        consoleSpy.warn.some(
+          (w) => w.includes('SearchResult') && w.includes('not an object or interface type')
+        )
+      ).toBe(true);
+      expect(output).not.toContain('SearchResultWithTypePolicies');
+      expect(output).not.toContain("'SearchResult.placeholder'");
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should produce self-consistent output for interface policies', () => {
+    const origWarn = console.warn;
+    console.warn = () => {};
+
+    try {
+      const output = pluginFromSource(`
+        export const typePolicies = {
+          Node: {
+            fields: {
+              displayName: {
+                read(existing: string): string {
+                  return existing.toUpperCase();
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      const referenced = new Set(
+        Array.from(output.matchAll(/(\w+)WithTypePolicies/g), (m) => m[1])
+      );
+      const declared = new Set(
+        Array.from(output.matchAll(/export type (\w+)WithTypePolicies\b/g), (m) => m[1])
+      );
+      for (const name of referenced) {
+        expect(declared.has(name)).toBe(true);
+      }
     } finally {
       console.warn = origWarn;
     }

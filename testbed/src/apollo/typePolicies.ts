@@ -1,4 +1,4 @@
-import { TypePolicies } from '@apollo/client';
+import type { TypePolicies } from '@apollo/client';
 
 /**
  * Custom type for formatted dates
@@ -100,9 +100,7 @@ export const typePolicies: TypePolicies = {
   Comment: {
     fields: {
       createdAt: {
-        read: function (existing: string): Date {
-          return new Date(existing);
-        },
+        read: (existing: string): Date => new Date(existing),
       },
     },
   },
