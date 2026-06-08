@@ -10,8 +10,16 @@ export interface TypePoliciesPluginConfig {
   typePoliciesPath: string;
 
   /**
-   * Name of the exported variable containing the type policies.
+   * Name of the named export inside `typePoliciesPath` that holds the policies.
+   *
+   * The plugin looks for `export const <name> = { ... }` in the file. Override
+   * this when your variable isn't called `typePolicies` — e.g. `apolloTypePolicies`
+   * or any name your codebase uses.
+   *
+   * Only named exports are supported; `export default` is not detected.
+   *
    * @default "typePolicies"
+   * @example "apolloTypePolicies"
    */
   typePoliciesExport?: string;
 
@@ -75,7 +83,9 @@ export const defaultConfig: Omit<ResolvedTypePoliciesPluginConfig, 'typePolicies
  */
 export function resolveConfig(config: TypePoliciesPluginConfig): ResolvedTypePoliciesPluginConfig {
   if (!config.typePoliciesPath) {
-    throw new Error('[graphql-codegen-apollo-typepolicies] Missing required config: typePoliciesPath');
+    throw new Error(
+      '[graphql-codegen-apollo-typepolicies] Missing required config: typePoliciesPath'
+    );
   }
 
   return {

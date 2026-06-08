@@ -1,9 +1,9 @@
-import { PluginFunction, Types } from '@graphql-codegen/plugin-helpers';
-import { GraphQLSchema, isObjectType, isInterfaceType } from 'graphql';
-import { TypePoliciesPluginConfig, resolveConfig } from './config';
-import { parseTypePolicies, TypeTransformation } from './parser';
+import path from 'node:path';
+import type { PluginFunction, Types } from '@graphql-codegen/plugin-helpers';
+import { type GraphQLSchema, isInterfaceType, isObjectType } from 'graphql';
+import { resolveConfig, type TypePoliciesPluginConfig } from './config';
 import { generateTypeOverrides } from './generator';
-import path from 'path';
+import { parseTypePolicies, type TypeTransformation } from './parser';
 
 /**
  * GraphQL Codegen plugin that generates TypeScript types reflecting
@@ -13,9 +13,8 @@ export const plugin: PluginFunction<TypePoliciesPluginConfig> = (
   schema: GraphQLSchema,
   _documents: Types.DocumentFile[],
   config: TypePoliciesPluginConfig,
-  info
+  _info
 ): string => {
-  // Resolve configuration with defaults
   const resolvedConfig = resolveConfig(config);
 
   if (resolvedConfig.debug) {
@@ -23,7 +22,6 @@ export const plugin: PluginFunction<TypePoliciesPluginConfig> = (
     console.log(`[debug] Config:`, JSON.stringify(resolvedConfig, null, 2));
   }
 
-  // Resolve the type policies path relative to cwd
   let typePoliciesPath = resolvedConfig.typePoliciesPath;
 
   // If the path is relative, resolve it relative to the current working directory
@@ -35,7 +33,6 @@ export const plugin: PluginFunction<TypePoliciesPluginConfig> = (
     console.log(`[debug] Resolved typePoliciesPath: ${typePoliciesPath}`);
   }
 
-  // Parse type policies
   const { transformations, errors, warnings } = parseTypePolicies(
     typePoliciesPath,
     resolvedConfig.typePoliciesExport,
@@ -46,22 +43,21 @@ export const plugin: PluginFunction<TypePoliciesPluginConfig> = (
     }
   );
 
-  // Report warnings
   if (warnings.length > 0) {
     for (const warning of warnings) {
       console.warn(`[graphql-codegen-apollo-typepolicies] ${warning}`);
     }
   }
 
-  // Report errors
   if (errors.length > 0) {
     console.error('[graphql-codegen-apollo-typepolicies] Errors while parsing type policies:');
     for (const error of errors) {
-      const location = error.location ? ` at ${error.location.filePath}:${error.location.line}` : '';
+      const location = error.location
+        ? ` at ${error.location.filePath}:${error.location.line}`
+        : '';
       console.error(`  - ${error.typeName}.${error.fieldName}${location}: ${error.message}`);
     }
 
-    // If using require-annotations mode, throw on any errors
     if (resolvedConfig.typeInference === 'require-annotations') {
       throw new Error(
         `[graphql-codegen-apollo-typepolicies] Found ${errors.length} error(s) while parsing type policies. ` +
@@ -80,7 +76,6 @@ export const plugin: PluginFunction<TypePoliciesPluginConfig> = (
   // Validate transformations against schema
   validateTransformations(schema, transformations, resolvedConfig.debug);
 
-  // Generate output
   const output = generateTypeOverrides(schema, transformations, resolvedConfig);
 
   if (resolvedConfig.debug) {

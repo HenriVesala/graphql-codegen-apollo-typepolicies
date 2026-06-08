@@ -1,13 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { parseTypePolicies, parseTypePoliciesFromSource } from '../src/parser';
-import path from 'path';
 
 const opts = { typeInference: 'infer' as const, debug: false };
 
 describe('TypePolicy Parser', () => {
   describe('simple type policies', () => {
     it('should extract simple read function return types', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -24,7 +25,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       expect(result.errors).toHaveLength(0);
       expect(result.transformations.size).toBe(2);
@@ -85,7 +89,8 @@ describe('TypePolicy Parser', () => {
 
   describe('arrow functions', () => {
     it('should extract types from arrow function syntax', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           Post: {
             fields: {
@@ -100,7 +105,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       expect(result.errors).toHaveLength(0);
       expect(result.transformations.size).toBe(2);
@@ -150,11 +158,10 @@ describe('TypePolicy Parser', () => {
     });
 
     it('should error when typeInference is "require-annotations" and annotation is missing', () => {
-      const result = parseTypePoliciesFromSource(
-        inferredSource,
-        'typePolicies',
-        { typeInference: 'require-annotations', debug: false }
-      );
+      const result = parseTypePoliciesFromSource(inferredSource, 'typePolicies', {
+        typeInference: 'require-annotations',
+        debug: false,
+      });
 
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0].message).toContain('require-annotations');
@@ -163,7 +170,8 @@ describe('TypePolicy Parser', () => {
 
   describe('complex types', () => {
     it('should handle custom interface return types', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         interface FormattedDate {
           date: Date;
           formatted: string;
@@ -194,7 +202,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       expect(result.errors).toHaveLength(0);
 
@@ -258,7 +269,8 @@ describe('TypePolicy Parser', () => {
 
   describe('shorthand method syntax', () => {
     it('should extract types from shorthand method syntax', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -271,7 +283,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       expect(result.errors).toHaveLength(0);
       expect(result.transformations.size).toBe(2);
@@ -288,7 +303,8 @@ describe('TypePolicy Parser', () => {
 
   describe('location information', () => {
     it('should include location in transformations', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -300,7 +316,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       const createdAt = result.transformations.get('User.createdAt');
       expect(createdAt?.location).toBeDefined();
@@ -308,7 +327,8 @@ describe('TypePolicy Parser', () => {
     });
 
     it('should include location in errors', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -320,7 +340,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', { typeInference: 'require-annotations', debug: false });
+      `,
+        'typePolicies',
+        { typeInference: 'require-annotations', debug: false }
+      );
 
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0].location).toBeDefined();
@@ -330,7 +353,8 @@ describe('TypePolicy Parser', () => {
 
   describe('warnings', () => {
     it('should return empty warnings for valid policy', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -342,7 +366,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       expect(result.warnings).toHaveLength(0);
     });
@@ -361,7 +388,9 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/typePoliciesUser.ts', `
+          [
+            '/virtual/typePoliciesUser.ts',
+            `
             export const typePoliciesUser = {
               User: {
                 fields: {
@@ -373,7 +402,8 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
+          `,
+          ],
         ])
       );
 
@@ -401,7 +431,9 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/typePoliciesUser.ts', `
+          [
+            '/virtual/typePoliciesUser.ts',
+            `
             export const typePoliciesUser = {
               User: {
                 fields: {
@@ -413,8 +445,11 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
-          ['/virtual/typePoliciesPost.ts', `
+          `,
+          ],
+          [
+            '/virtual/typePoliciesPost.ts',
+            `
             export const typePoliciesPost = {
               Post: {
                 fields: {
@@ -424,7 +459,8 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
+          `,
+          ],
         ])
       );
 
@@ -456,7 +492,9 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/dateFields.ts', `
+          [
+            '/virtual/dateFields.ts',
+            `
             export const dateFields = {
               createdAt: {
                 read(existing: string): Date {
@@ -469,7 +507,8 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
+          `,
+          ],
         ])
       );
 
@@ -493,7 +532,9 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/typePoliciesA.ts', `
+          [
+            '/virtual/typePoliciesA.ts',
+            `
             import { typePoliciesB } from './typePoliciesB';
             export const typePoliciesA = {
               ...typePoliciesB,
@@ -507,8 +548,11 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
-          ['/virtual/typePoliciesB.ts', `
+          `,
+          ],
+          [
+            '/virtual/typePoliciesB.ts',
+            `
             export const typePoliciesB = {
               Post: {
                 fields: {
@@ -520,7 +564,8 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
+          `,
+          ],
         ])
       );
 
@@ -543,17 +588,20 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/policiesA.ts',
         new Map([
-          ['/virtual/policiesB.ts', `
+          [
+            '/virtual/policiesB.ts',
+            `
             import { policiesA } from './policiesA';
             export const policiesB = {
               ...policiesA,
             };
-          `],
+          `,
+          ],
         ])
       );
 
       expect(result.warnings.length).toBeGreaterThan(0);
-      expect(result.warnings.some(w => w.includes('Circular'))).toBe(true);
+      expect(result.warnings.some((w) => w.includes('Circular'))).toBe(true);
     });
 
     it('should warn when spread expression cannot be resolved', () => {
@@ -592,7 +640,9 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/typePoliciesPost.ts', `
+          [
+            '/virtual/typePoliciesPost.ts',
+            `
             export const typePoliciesPost = {
               Post: {
                 fields: {
@@ -602,7 +652,8 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
+          `,
+          ],
         ])
       );
 
@@ -634,7 +685,9 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/sharedDateFields.ts', `
+          [
+            '/virtual/sharedDateFields.ts',
+            `
             export const sharedDateFields = {
               createdAt: {
                 read(existing: string): Date {
@@ -647,7 +700,8 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
+          `,
+          ],
         ])
       );
 
@@ -681,7 +735,9 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/basePolicies.ts', `
+          [
+            '/virtual/basePolicies.ts',
+            `
             export const basePolicies = {
               User: {
                 fields: {
@@ -693,7 +749,8 @@ describe('TypePolicy Parser', () => {
                 },
               },
             };
-          `],
+          `,
+          ],
         ])
       );
 
@@ -723,7 +780,8 @@ describe('TypePolicy Parser', () => {
 
   describe('function expression syntax', () => {
     it('should extract types from function expression with annotation', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -735,7 +793,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       expect(result.errors).toHaveLength(0);
       const createdAt = result.transformations.get('User.createdAt');
@@ -743,7 +804,8 @@ describe('TypePolicy Parser', () => {
     });
 
     it('should infer types from function expression without annotation', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -755,7 +817,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', opts);
+      `,
+        'typePolicies',
+        opts
+      );
 
       expect(result.errors).toHaveLength(0);
       const createdAt = result.transformations.get('User.createdAt');
@@ -763,7 +828,8 @@ describe('TypePolicy Parser', () => {
     });
 
     it('should error on function expression without annotation in require-annotations mode', () => {
-      const result = parseTypePoliciesFromSource(`
+      const result = parseTypePoliciesFromSource(
+        `
         export const typePolicies = {
           User: {
             fields: {
@@ -775,7 +841,10 @@ describe('TypePolicy Parser', () => {
             },
           },
         };
-      `, 'typePolicies', { typeInference: 'require-annotations', debug: false });
+      `,
+        'typePolicies',
+        { typeInference: 'require-annotations', debug: false }
+      );
 
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0].message).toContain('require-annotations');
@@ -795,10 +864,13 @@ describe('TypePolicy Parser', () => {
         opts,
         '/virtual/typePolicies.ts',
         new Map([
-          ['/virtual/dynamicPolicies.ts', `
+          [
+            '/virtual/dynamicPolicies.ts',
+            `
             export const dynamicPolicies = getSomePolicies();
             function getSomePolicies() { return {}; }
-          `],
+          `,
+          ],
         ])
       );
 
@@ -810,19 +882,22 @@ describe('TypePolicy Parser', () => {
   describe('error handling', () => {
     it('should throw when file does not exist', () => {
       expect(() =>
-        parseTypePolicies(
-          path.join(__dirname, 'fixtures', 'non-existent.ts'),
-          'typePolicies',
-          { typeInference: 'infer', debug: false }
-        )
+        parseTypePolicies(path.join(__dirname, 'fixtures', 'non-existent.ts'), 'typePolicies', {
+          typeInference: 'infer',
+          debug: false,
+        })
       ).toThrow('Could not read file');
     });
 
     it('should throw when export is not found', () => {
       expect(() =>
-        parseTypePoliciesFromSource(`
+        parseTypePoliciesFromSource(
+          `
           export const something = {};
-        `, 'nonExistentExport', opts)
+        `,
+          'nonExistentExport',
+          opts
+        )
       ).toThrow('Could not find');
     });
   });

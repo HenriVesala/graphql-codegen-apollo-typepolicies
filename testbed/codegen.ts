@@ -5,6 +5,10 @@ const config: CodegenConfig = {
   documents: './src/graphql/**/*.graphql',
   generates: {
     './src/generated/graphql.ts': {
+      config: {
+        enumsAsTypes: true,
+        inlineFragmentTypes: 'combine',
+      },
       plugins: [
         'typescript',
         'typescript-operations',

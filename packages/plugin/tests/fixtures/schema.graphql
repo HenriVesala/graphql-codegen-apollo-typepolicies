@@ -1,3 +1,6 @@
+# GraphQL schema for testing purposes.
+# schema tries to emulate somewhat realistic schema
+
 type User {
   id: ID!
   name: String!
