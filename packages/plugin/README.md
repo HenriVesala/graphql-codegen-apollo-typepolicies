@@ -105,19 +105,32 @@ export type WithTypePolicies<T>   // applies overlays throughout T
 
 The two most common usages:
 
-**Wrapping a `useQuery` result:**
+**Wrapping a `useQuery` result (Apollo 4.2+, recommended):**
+
+Apollo 4.2 deprecated passing generic arguments to `useQuery`. The modern pattern types the document itself via `TypedDocumentNode`, then `useQuery(document)` infers `data` directly — no generic args, no type cast. Compose `WithTypePolicies<T>` into the document's `TData` and the transformed shape flows through automatically:
 
 ```tsx
-import { useQuery } from '@apollo/client';
-import { GetUserQuery, GetUserQueryVariables, WithTypePolicies } from './generated/graphql';
+import { gql, type TypedDocumentNode } from '@apollo/client';
+import { useQuery } from '@apollo/client/react';
+import type { GetUserQuery, GetUserQueryVariables, WithTypePolicies } from './generated/graphql';
+
+const GET_USER: TypedDocumentNode<
+  WithTypePolicies<GetUserQuery>,
+  GetUserQueryVariables
+> = gql`
+  query GetUser($id: ID!) {
+    user(id: $id) { id name createdAt }
+  }
+`;
 
 function UserCard({ id }: { id: string }) {
-  const { data } = useQuery<GetUserQuery, GetUserQueryVariables>(GET_USER, { variables: { id } });
-  const user = (data as WithTypePolicies<GetUserQuery>)?.user;
-  //    ^? user.createdAt is Date, not string
-  return <div>{user?.createdAt.toLocaleDateString()}</div>;
+  const { data } = useQuery(GET_USER, { variables: { id } });
+  //      ^? data.user.createdAt is Date, not string — no cast
+  return <div>{data?.user?.createdAt.toLocaleDateString()}</div>;
 }
 ```
+
+If you're on Apollo < 4.2 (or haven't migrated yet), the classic form still works but requires a cast: `(data as WithTypePolicies<GetUserQuery>)?.user`. See Apollo's [TypeScript signature styles](https://www.apollographql.com/docs/react/data/typescript#signature-styles-classic-and-modern) for the deprecation context.
 
 **Wrapping a `cache.readFragment` result:**
 

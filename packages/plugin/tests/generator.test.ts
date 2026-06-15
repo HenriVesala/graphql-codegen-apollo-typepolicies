@@ -78,7 +78,7 @@ describe('Type Override Generator', () => {
             typeName: 'User',
             fieldName: 'updatedAt',
             transformedType: 'Date',
-            isNullable: false, 
+            isNullable: false,
             isArray: false,
           },
         ],

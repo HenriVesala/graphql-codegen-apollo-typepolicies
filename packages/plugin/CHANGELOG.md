@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-06-10
+
+### Changed
+- **README**: usage example now uses Apollo 4.2+'s recommended `TypedDocumentNode` pattern instead of the deprecated `useQuery<TData, TVariables>(...)` generic-arguments form. The new pattern composes `WithTypePolicies<T>` into the document type — `useQuery(document)` infers transformed `data` directly, no cast required. Apollo Client 4 also moved `useQuery` to `@apollo/client/react`; the import is updated accordingly.
+
+### Verified
+- `WithTypePolicies<T>` composes correctly with Apollo 4 data masking: when the codegen-emitted query type is the masked subset of fields, transformations apply only to selected fields and masked-out fields stay absent (no widening). Type-level smoke test added to the testbed.
+
+### Note
+- Apollo 4's `TypeOverrides` extension surface (in `@apollo/client`) is being evaluated for a 0.2.0 feature that would auto-apply `WithTypePolicies` to every hook result without manual wrapping. See ROADMAP.
+
 ## [0.1.0] - 2026-05-08
 
 Initial release.
