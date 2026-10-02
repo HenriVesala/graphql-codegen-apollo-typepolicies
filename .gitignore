@@ -5,6 +5,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# npm pack output (local test tarballs; never commit)
+*.tgz
+
 # Generated files
 testbed/src/generated/
 

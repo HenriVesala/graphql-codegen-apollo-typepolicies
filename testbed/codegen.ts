@@ -10,6 +10,11 @@ const config: CodegenConfig = {
         inlineFragmentTypes: 'combine',
       },
       plugins: [
+        {
+          add: {
+            content: `import type { FormattedDate, ParsedMetadata } from '../apollo/types';`,
+          },
+        },
         'typescript',
         'typescript-operations',
         {

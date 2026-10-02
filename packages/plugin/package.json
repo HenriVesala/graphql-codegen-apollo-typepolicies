@@ -1,6 +1,6 @@
 {
   "name": "graphql-codegen-apollo-typepolicies",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "GraphQL Codegen plugin to infer type transformations from Apollo Client type policies",
   "repository": {
     "type": "git",
@@ -36,7 +36,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "sync-readme": "cp ../../README.md ./README.md && cp ../../LICENSE ./LICENSE",
+    "prepublishOnly": "npm run sync-readme && npm run build"
   },
   "keywords": [
     "graphql",

@@ -10,16 +10,17 @@ export interface TypePoliciesPluginConfig {
   typePoliciesPath: string;
 
   /**
-   * Name of the named export inside `typePoliciesPath` that holds the policies.
+   * Name of the export inside `typePoliciesPath` that holds the policies.
    *
    * The plugin looks for `export const <name> = { ... }` in the file. Override
    * this when your variable isn't called `typePolicies` — e.g. `apolloTypePolicies`
    * or any name your codebase uses.
    *
-   * Only named exports are supported; `export default` is not detected.
+   * Pass `"default"` to pick up `export default { ... }` instead.
    *
    * @default "typePolicies"
    * @example "apolloTypePolicies"
+   * @example "default"
    */
   typePoliciesExport?: string;
 
@@ -53,6 +54,18 @@ export interface TypePoliciesPluginConfig {
    * @example "./tsconfig.json"
    */
   tsconfigPath?: string;
+
+  /**
+   * How to handle a computed property name that cannot be statically resolved
+   * to a string literal (e.g. `{ [getFieldName()]: ... }` or a `let` binding).
+   *
+   * Apollo evaluates the key at runtime and the `read` still fires, so skipping
+   * it produces a type that disagrees with the runtime value. This option
+   * controls whether that mismatch is a loud warning or a hard error.
+   *
+   * @default "warn" — "error" when `typeInference` is "require-annotations"
+   */
+  onUnresolvedComputedKey?: 'warn' | 'error';
 }
 
 /**
@@ -65,6 +78,7 @@ export interface ResolvedTypePoliciesPluginConfig {
   preserveNullability: boolean;
   debug: boolean;
   tsconfigPath: string | undefined;
+  onUnresolvedComputedKey: 'warn' | 'error';
 }
 
 /**
@@ -76,6 +90,7 @@ export const defaultConfig: Omit<ResolvedTypePoliciesPluginConfig, 'typePolicies
   preserveNullability: true,
   debug: false,
   tsconfigPath: undefined,
+  onUnresolvedComputedKey: 'warn',
 };
 
 /**
@@ -88,9 +103,16 @@ export function resolveConfig(config: TypePoliciesPluginConfig): ResolvedTypePol
     );
   }
 
+  // When `require-annotations` strictness is on, unresolved computed keys
+  // should also be strict unless the user has explicitly opted out.
+  const onUnresolvedComputedKey =
+    config.onUnresolvedComputedKey ??
+    (config.typeInference === 'require-annotations' ? 'error' : 'warn');
+
   return {
     ...defaultConfig,
     ...config,
     typePoliciesPath: config.typePoliciesPath,
+    onUnresolvedComputedKey,
   };
 }

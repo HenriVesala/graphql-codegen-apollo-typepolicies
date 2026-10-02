@@ -240,6 +240,40 @@ describe('Plugin Integration', () => {
     ).toThrow('Could not read file');
   });
 
+  it('should pick up a default export when typePoliciesExport is "default"', () => {
+    const output = pluginFromSource(
+      `
+      export default {
+        User: {
+          fields: {
+            createdAt: {
+              read(existing: string): Date {
+                return new Date(existing);
+              },
+            },
+          },
+        },
+      };
+    `,
+      { typePoliciesExport: 'default' }
+    );
+
+    expect(output).toContain('UserWithTypePolicies');
+    expect(output).toContain('createdAt: Date');
+    expect(output).toContain("'User.createdAt': Date");
+  });
+
+  it('should throw a clear error when default export is missing but requested', () => {
+    expect(() =>
+      pluginFromSource(
+        `
+      export const notTypePolicies = {};
+    `,
+        { typePoliciesExport: 'default' }
+      )
+    ).toThrow(/Could not find "default" export/);
+  });
+
   it('should generate WithTypePolicies utility type', () => {
     const output = pluginFromSource(`
       export const typePolicies = {
@@ -320,13 +354,13 @@ describe('Plugin Integration', () => {
     }
   });
 
-  it('should report parser warnings through plugin', () => {
+  it('should resolve a computed property name when it points to a string const', () => {
     const consoleSpy = { warn: [] as string[] };
     const origWarn = console.warn;
     console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
 
     try {
-      pluginFromSource(`
+      const output = pluginFromSource(`
         const FIELD = 'createdAt';
         export const typePolicies = {
           User: {
@@ -341,9 +375,243 @@ describe('Plugin Integration', () => {
         };
       `);
 
-      expect(consoleSpy.warn.some((w) => w.includes('Computed property name'))).toBe(true);
+      // Should resolve FIELD → 'createdAt' and emit the transformation.
+      expect(output).toContain("'User.createdAt': Date");
+      expect(output).toContain('createdAt: Date');
+      // No warning fired because the computed name was resolvable.
+      expect(consoleSpy.warn.some((w) => w.includes('Computed property name'))).toBe(false);
     } finally {
       console.warn = origWarn;
+    }
+  });
+
+  it('should emit a loud warning for an unresolvable computed property name', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      pluginFromSource(`
+        let FIELD = 'createdAt';   // let, not const — intentionally unresolvable
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `);
+
+      // Loud warning: "Warning:" prefix + mentions runtime-vs-type disagreement.
+      expect(
+        consoleSpy.warn.some(
+          (w) =>
+            w.includes('Warning:') && w.includes('Computed property name') && w.includes('runtime')
+        )
+      ).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should throw when onUnresolvedComputedKey is "error" and a key cannot be resolved', () => {
+    expect(() =>
+      pluginFromSource(
+        `
+        let FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `,
+        { onUnresolvedComputedKey: 'error' }
+      )
+    ).toThrow(/onUnresolvedComputedKey.*error/);
+  });
+
+  it('should auto-escalate to error mode under typeInference "require-annotations"', () => {
+    expect(() =>
+      pluginFromSource(
+        `
+        let FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `,
+        { typeInference: 'require-annotations' }
+      )
+    ).toThrow();
+  });
+
+  it('should allow explicit opt-out when require-annotations is on but computed keys should still warn', () => {
+    const consoleSpy = { warn: [] as string[] };
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => consoleSpy.warn.push(args.join(' '));
+
+    try {
+      // require-annotations alone would error on the unresolved key,
+      // but the explicit "warn" opt-out preserves warning behavior.
+      pluginFromSource(
+        `
+        let FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `,
+        {
+          typeInference: 'require-annotations',
+          onUnresolvedComputedKey: 'warn',
+        }
+      );
+
+      expect(consoleSpy.warn.some((w) => w.includes('Warning:'))).toBe(true);
+    } finally {
+      console.warn = origWarn;
+    }
+  });
+
+  it('should attribute the throw to annotations (not computed keys) when only annotations are missing', () => {
+    expect(() =>
+      pluginFromSource(
+        `
+        export const typePolicies = {
+          User: {
+            fields: {
+              createdAt: {
+                // No return type annotation — missing-annotation error
+                read(existing: string) {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `,
+        { typeInference: 'require-annotations' }
+      )
+    ).toThrow(/missing return type annotation.*require-annotations/);
+  });
+
+  it('should attribute the throw to computed keys (not annotations) when only computed keys are unresolved', () => {
+    // Explicitly fully annotated — only failure is the unresolved computed key.
+    // Previously plugin.ts would misreport this as a missing-annotation issue.
+    expect(() =>
+      pluginFromSource(
+        `
+        let FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `,
+        { typeInference: 'require-annotations' }
+      )
+    ).toThrow(/unresolved computed property name.*onUnresolvedComputedKey/);
+  });
+
+  it('should mention BOTH causes when both error kinds are present', () => {
+    let caught: Error | undefined;
+    try {
+      pluginFromSource(
+        `
+        let FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date {
+                  return new Date(existing);
+                },
+              },
+              updatedAt: {
+                // Missing annotation
+                read(existing: string) {
+                  return new Date(existing);
+                },
+              },
+            },
+          },
+        };
+      `,
+        { typeInference: 'require-annotations' }
+      );
+    } catch (e) {
+      caught = e as Error;
+    }
+
+    expect(caught).toBeDefined();
+    expect(caught?.message).toMatch(/missing return type annotation/);
+    expect(caught?.message).toMatch(/unresolved computed property name/);
+    expect(caught?.message).toMatch(/ and /);
+  });
+
+  it('should record the parent type name on a computed-key error (not "<unknown>")', () => {
+    const errorLogs: string[] = [];
+    const origError = console.error;
+    console.error = (...args: unknown[]) => errorLogs.push(args.join(' '));
+
+    try {
+      try {
+        pluginFromSource(
+          `
+          let FIELD = 'createdAt';
+          export const typePolicies = {
+            User: {
+              fields: {
+                [FIELD]: {
+                  read(existing: string): Date {
+                    return new Date(existing);
+                  },
+                },
+              },
+            },
+          };
+        `,
+          { onUnresolvedComputedKey: 'error' }
+        );
+      } catch {
+        // throw expected — we care about the per-error log line above it
+      }
+
+      // Per-error listing should include `User.<computed>`, not `<unknown>.<computed>`.
+      expect(errorLogs.some((l) => l.includes('User.<computed>'))).toBe(true);
+      expect(errorLogs.some((l) => l.includes('<unknown>'))).toBe(false);
+    } finally {
+      console.error = origError;
     }
   });
 

@@ -375,6 +375,100 @@ describe('TypePolicy Parser', () => {
     });
   });
 
+  describe('computed property name resolution', () => {
+    it('should resolve a computed key bound to a local const string literal', () => {
+      const result = parseTypePoliciesFromSource(
+        `
+        const FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date { return new Date(existing); },
+              },
+            },
+          },
+        };
+        `,
+        'typePolicies',
+        opts
+      );
+
+      expect(result.transformations.has('User.createdAt')).toBe(true);
+      expect(result.warnings).toHaveLength(0);
+    });
+
+    it('should resolve a computed key bound to an imported const string literal', () => {
+      const result = parseTypePoliciesFromSource(
+        `
+        import { FIELD } from './fieldNames';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date { return new Date(existing); },
+              },
+            },
+          },
+        };
+        `,
+        'typePolicies',
+        opts,
+        '/virtual/typePolicies.ts',
+        new Map([['/virtual/fieldNames.ts', `export const FIELD = 'createdAt';`]])
+      );
+
+      expect(result.transformations.has('User.createdAt')).toBe(true);
+      expect(result.warnings).toHaveLength(0);
+    });
+
+    it('should NOT resolve a let-bound computed key, and emit a loud warning', () => {
+      const result = parseTypePoliciesFromSource(
+        `
+        let FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date { return new Date(existing); },
+              },
+            },
+          },
+        };
+        `,
+        'typePolicies',
+        opts
+      );
+
+      expect(result.transformations.has('User.createdAt')).toBe(false);
+      expect(result.warnings.some((w) => w.startsWith('Warning:') && w.includes('runtime'))).toBe(
+        true
+      );
+    });
+
+    it('should route to errors[] (not warnings[]) when onUnresolvedComputedKey is "error"', () => {
+      const result = parseTypePoliciesFromSource(
+        `
+        let FIELD = 'createdAt';
+        export const typePolicies = {
+          User: {
+            fields: {
+              [FIELD]: {
+                read(existing: string): Date { return new Date(existing); },
+              },
+            },
+          },
+        };
+        `,
+        'typePolicies',
+        { ...opts, onUnresolvedComputedKey: 'error' }
+      );
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors.some((e) => e.message.includes('Computed property name'))).toBe(true);
+    });
+  });
+
   describe('spread operators', () => {
     it('should resolve top-level spread operators across files', () => {
       const result = parseTypePoliciesFromSource(

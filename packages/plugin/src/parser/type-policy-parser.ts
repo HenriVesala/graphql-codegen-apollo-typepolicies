@@ -30,6 +30,8 @@ export interface TypeTransformation {
 }
 
 export interface ParseError {
+  /** The category of failure. The plugin uses this to attribute the throw. */
+  kind?: 'missing-annotation' | 'unresolved-computed-key';
   typeName: string;
   fieldName: string;
   message: string;
@@ -50,6 +52,7 @@ interface ParseOptions {
   typeInference: 'infer' | 'require-annotations';
   debug: boolean;
   tsconfigPath?: string;
+  onUnresolvedComputedKey?: 'warn' | 'error';
 }
 
 /**
@@ -158,18 +161,15 @@ function parseSourceFile(
     options,
   };
 
-  // Find the typePolicies declaration
-  const declaration = findTypePoliciesDeclaration(sourceFile, exportName);
-  if (!declaration) {
+  const raw = findTypePoliciesInitializer(sourceFile, exportName);
+  if (!raw) {
     throw new Error(
       `[graphql-codegen-apollo-typepolicies] Could not find "${exportName}" export in ${filePath}`
     );
   }
 
-  // Get the initializer (the object literal)
-  const raw = declaration.getInitializer();
-  const initializer = raw ? unwrapExpression(raw) : undefined;
-  if (!initializer || !Node.isObjectLiteralExpression(initializer)) {
+  const initializer = unwrapExpression(raw);
+  if (!Node.isObjectLiteralExpression(initializer)) {
     throw new Error(
       `[graphql-codegen-apollo-typepolicies] "${exportName}" must be an object literal expression`
     );
@@ -214,7 +214,7 @@ function processTypeProperties(
     if (!Node.isPropertyAssignment(typeProperty)) continue;
 
     const nodeFilePath = typeProperty.getSourceFile().getFilePath();
-    const typeName = getPropertyName(typeProperty, nodeFilePath, context.warnings);
+    const typeName = getPropertyName(typeProperty, nodeFilePath, context);
     if (!typeName) continue;
 
     const typeValue = typeProperty.getInitializer();
@@ -283,7 +283,7 @@ function processFieldProperties(
 
     if (!Node.isPropertyAssignment(fieldProperty)) continue;
 
-    const fieldName = getPropertyName(fieldProperty, nodeFilePath, context.warnings);
+    const fieldName = getPropertyName(fieldProperty, nodeFilePath, context, typeName);
     if (!fieldName) continue;
 
     try {
@@ -305,10 +305,16 @@ function processFieldProperties(
       }
     } catch (error) {
       const line = fieldProperty.getStartLineNumber();
+      const message = error instanceof Error ? error.message : String(error);
+      // Classify so plugin.ts can report the real cause when it throws.
+      const kind = message.includes('Missing return type annotation')
+        ? 'missing-annotation'
+        : undefined;
       context.errors.push({
+        kind,
         typeName,
         fieldName,
-        message: error instanceof Error ? error.message : String(error),
+        message,
         location: { filePath: nodeFilePath, line, column: 0 },
       });
     }
@@ -407,18 +413,27 @@ function unwrapExpression(node: Node): Node {
 }
 
 /**
- * Find the typePolicies variable declaration in the source file
+ * The magic string `"default"` as exportName selects the `export default`
+ * expression. Any other string is looked up as a named `export const`.
  */
-function findTypePoliciesDeclaration(sourceFile: SourceFile, exportName: string) {
+function findTypePoliciesInitializer(sourceFile: SourceFile, exportName: string): Node | null {
+  if (exportName === 'default') {
+    const defaultExport = sourceFile.getExportAssignment((d) => !d.isExportEquals());
+    if (defaultExport) {
+      return defaultExport.getExpression();
+    }
+    return null;
+  }
+
   const variableDeclaration = sourceFile.getVariableDeclaration(exportName);
   if (variableDeclaration) {
-    return variableDeclaration;
+    return variableDeclaration.getInitializer() ?? null;
   }
 
   for (const exportDecl of sourceFile.getExportedDeclarations().values()) {
     for (const decl of exportDecl) {
       if (Node.isVariableDeclaration(decl) && decl.getName() === exportName) {
-        return decl;
+        return decl.getInitializer() ?? null;
       }
     }
   }
@@ -432,7 +447,8 @@ function findTypePoliciesDeclaration(sourceFile: SourceFile, exportName: string)
 function getPropertyName(
   property: PropertyAssignment,
   filePath: string,
-  warnings: string[]
+  context: WalkContext,
+  parentTypeName?: string
 ): string | null {
   const nameNode = property.getNameNode();
 
@@ -445,10 +461,72 @@ function getPropertyName(
   }
 
   if (Node.isComputedPropertyName(nameNode)) {
+    const resolved = resolveComputedPropertyName(nameNode.getExpression());
+    if (resolved !== null) {
+      return resolved;
+    }
+
+    // Apollo evaluates computed keys at runtime, so the read function still
+    // fires even when we can't resolve the key — the risk is that generated
+    // types claim the schema shape while runtime values carry the transformed
+    // one. Make this impossible to miss.
     const line = property.getStartLineNumber();
-    warnings.push(
-      `[${filePath}:${line}] Computed property name is not supported and will be skipped`
-    );
+    const message =
+      `Computed property name could not be resolved to a string literal. ` +
+      `Apollo will still execute the read function at runtime, but the generated types won't ` +
+      `reflect the transformation — your type and runtime value may disagree. ` +
+      `Use a literal key or a const bound to a string literal.`;
+
+    if (context.options.onUnresolvedComputedKey === 'error') {
+      context.errors.push({
+        kind: 'unresolved-computed-key',
+        typeName: parentTypeName ?? '<top-level>',
+        fieldName: '<computed>',
+        message,
+        location: { filePath, line, column: 0 },
+      });
+    } else {
+      context.warnings.push(`Warning: [${filePath}:${line}] ${message}`);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Intentionally static-only — does not evaluate template substitutions,
+ * runtime expressions, or `let`/`var` bindings (whose values may change).
+ * Resolves local and imported `const` bindings to string literals. Returns
+ * null for anything unresolvable; the caller then emits a warning.
+ */
+function resolveComputedPropertyName(expr: Node): string | null {
+  if (Node.isStringLiteral(expr) || Node.isNoSubstitutionTemplateLiteral(expr)) {
+    return expr.getLiteralValue();
+  }
+
+  if (Node.isIdentifier(expr)) {
+    let symbol = expr.getSymbol();
+    if (!symbol) return null;
+
+    // For `import { X } from './y'`, getSymbol() returns the local alias.
+    // getAliasedSymbol() chases through the import to the real declaration.
+    const aliased = symbol.getAliasedSymbol();
+    if (aliased) symbol = aliased;
+
+    for (const decl of symbol.getDeclarations()) {
+      if (!Node.isVariableDeclaration(decl)) continue;
+      const parent = decl.getParent();
+      if (!Node.isVariableDeclarationList(parent)) continue;
+      // Only resolve `const` — `let`/`var` may be reassigned at runtime.
+      if (parent.getDeclarationKind() !== 'const') continue;
+
+      const init = decl.getInitializer();
+      if (!init) continue;
+      const unwrapped = unwrapExpression(init);
+      if (Node.isStringLiteral(unwrapped) || Node.isNoSubstitutionTemplateLiteral(unwrapped)) {
+        return unwrapped.getLiteralValue();
+      }
+    }
   }
 
   return null;

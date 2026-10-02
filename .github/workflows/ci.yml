@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run test
+
+      - run: npm run build
+
+      - name: Typecheck plugin
+        run: npx tsc --noEmit
+        working-directory: packages/plugin
+
+      - name: Run testbed codegen
+        run: npm run codegen
+        working-directory: testbed
+
+      - name: Typecheck testbed
+        run: npx tsc --noEmit
+        working-directory: testbed

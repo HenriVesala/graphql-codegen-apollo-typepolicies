@@ -1,21 +1,5 @@
 import type { TypePolicies } from '@apollo/client';
-
-/**
- * Custom type for formatted dates
- */
-interface FormattedDate {
-  date: Date;
-  formatted: string;
-  relative: string;
-}
-
-/**
- * Custom type for parsed metadata
- */
-interface ParsedMetadata {
-  version: number;
-  preferences: Record<string, unknown>;
-}
+import type { FormattedDate, ParsedMetadata } from './types';
 
 /**
  * Apollo Client type policies with read function transformations

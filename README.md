@@ -54,10 +54,11 @@ export default config;
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `typePoliciesPath` | `string` | **required** | Path to the TypeScript file containing your type policies |
-| `typePoliciesExport` | `string` | `"typePolicies"` | Name of the exported variable containing the type policies |
+| `typePoliciesExport` | `string` | `"typePolicies"` | Name of the exported variable containing the type policies. Pass `"default"` to pick up `export default { ... }` |
 | `typeInference` | `"infer" \| "require-annotations"` | `"infer"` | How to extract return types from `read` functions |
 | `preserveNullability` | `boolean` | `true` | Preserve nullability from the GraphQL schema on transformed types |
 | `tsconfigPath` | `string` | `undefined` | Path to `tsconfig.json` for proper type resolution (useful with path aliases) |
+| `onUnresolvedComputedKey` | `"warn" \| "error"` | `"warn"` (auto `"error"` under `require-annotations`) | Behavior when a computed property key (`{ [FIELD]: ... }`) can't be statically resolved — see [Policy file constraints](#policy-file-constraints) for why this matters |
 | `debug` | `boolean` | `false` | Enable debug logging |
 
 ### Type inference modes
@@ -182,12 +183,15 @@ The plugin analyzes only `read` functions. Other type policy options (`merge`, `
 
 ## Policy file constraints
 
-The plugin statically reads your typePolicies file via ts-morph — it never executes it. A few patterns are therefore not supported:
+The plugin statically reads your typePolicies file via ts-morph — it never executes it. One nuance to be aware of:
 
-- **Computed property names** — `{ [FIELD]: { read(...) } }` is skipped with a `console.warn`. Use a literal key: `{ createdAt: { read(...) } }`.
-- **Default exports** — only named exports are detected. Use `export const typePolicies = { ... }`, not `export default { ... }`. The export name is configurable via `typePoliciesExport`.
+- **Computed property names** — `{ [FIELD]: { read(...) } }` resolves when `FIELD` is a `const` bound to a string literal, either in the same file (`const FIELD = 'createdAt';`) or imported from another file (`import { FIELD } from './fieldNames';`). Other cases — `let`/`var`, runtime expressions, template literals with substitutions — can't be resolved statically.
 
-Supported authoring styles include shorthand methods (`createdAt(existing) { ... }`), arrows, function expressions, and `...spread` from other files.
+  **Why this matters:** Apollo evaluates the key at runtime and still runs the `read` function. If the plugin can't resolve the key, the generated types will claim the schema shape while Apollo returns the transformed value — a silent type/runtime mismatch. By default the plugin logs a `Warning:` for each unresolved key; under `typeInference: "require-annotations"` it fails the build. Override with the `onUnresolvedComputedKey` config option.
+
+  Safest fix when in doubt: use a literal key — `{ createdAt: { read(...) } }`.
+
+Supported authoring styles include named `export const typePolicies = { ... }`, `export default { ... }` (set `typePoliciesExport: "default"`), shorthand methods (`createdAt(existing) { ... }`), arrows, function expressions, and `...spread` from other files.
 
 ## License
 

@@ -15,18 +15,11 @@ const GET_USER: TypedDocumentNode<WithTypePolicies<GetUserQuery>, GetUserQueryVa
   }
 `;
 
-// Type-level assertions on the result shape.
 function _smoke(id: string) {
   const { data } = useQuery(GET_USER, { variables: { id } });
 
-  // Without the WithTypePolicies wrapping in the document type, the next line
-  // would error: data?.user could be a union including UserNotFound which
-  // doesn't have a typed createdAt. The narrowing via __typename is real
-  // application code; the smoke test only needs to confirm the union resolves
-  // and that wherever User appears, createdAt is Date (not string).
+  // data.user is a GraphQL union; narrow by __typename before accessing fields.
   if (data?.user?.__typename === 'User') {
-    // Should be Date thanks to WithTypePolicies fanning the policy through
-    // GetUserQuery's nested User shape.
     const created: Date = data.user.createdAt;
     void created;
   }

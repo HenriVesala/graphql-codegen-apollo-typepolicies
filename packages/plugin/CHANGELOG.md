@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-10-02
+
+### Added
+- **Default export support** — `export default { ... }` is now a valid shape for the policies file. Pass `typePoliciesExport: "default"` to pick it up. Previously only named exports were detected.
+- **Computed property name resolution** — `{ [FIELD]: { read(...) } }` now resolves via ts-morph symbol lookup when `FIELD` is bound to a string literal `const`, including **imported `const` bindings** from another file. Previously all computed names were skipped with a warning. Still skipped when the binding is `let`/`var`, a runtime expression, or a template literal with substitutions.
+- **`onUnresolvedComputedKey: "warn" | "error"` config option** — controls what happens when a computed key cannot be resolved. The default is `"warn"` so existing behavior is preserved; it auto-escalates to `"error"` under `typeInference: "require-annotations"`.
+
+### Changed
+- The warning for an unresolved computed property name is now prefixed with `Warning:` and explicitly notes that Apollo will still execute the `read` function at runtime — the generated types do not reflect it, which produces a type/runtime mismatch. Addresses feedback from downstream users who hit silently-wrong generated types.
+- When the plugin throws under `require-annotations` or `onUnresolvedComputedKey: "error"`, the thrown message now **attributes the failure to the actual cause** (missing annotations vs. unresolved computed keys, naming the count and the responsible config option). Previously an annotation-focused message was thrown even when the only failures were unresolved computed keys. When both kinds of error are present, both are named.
+- Computed-key errors now record the known parent GraphQL type name (e.g. `User.<computed>`) in the per-error listing. Previously they showed `<unknown>.<computed>`. The warning text also no longer repeats the `[file:line]` prefix inside the message when the location is already printed separately.
+
+### Infrastructure
+- GitHub Actions CI runs biome, tests, build, and testbed codegen+typecheck on every push and PR.
+- `prepublishOnly` now auto-syncs the root `README.md` and `LICENSE` into the published package directory, eliminating the manual two-copy drift.
+
 ## [0.1.1] - 2026-06-10
 
 ### Changed

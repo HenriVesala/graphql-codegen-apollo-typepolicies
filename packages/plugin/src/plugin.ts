@@ -40,6 +40,7 @@ export const plugin: PluginFunction<TypePoliciesPluginConfig> = (
       typeInference: resolvedConfig.typeInference,
       debug: resolvedConfig.debug,
       tsconfigPath: resolvedConfig.tsconfigPath,
+      onUnresolvedComputedKey: resolvedConfig.onUnresolvedComputedKey,
     }
   );
 
@@ -58,10 +59,36 @@ export const plugin: PluginFunction<TypePoliciesPluginConfig> = (
       console.error(`  - ${error.typeName}.${error.fieldName}${location}: ${error.message}`);
     }
 
-    if (resolvedConfig.typeInference === 'require-annotations') {
+    const annotationErrors = errors.filter((e) => e.kind === 'missing-annotation');
+    const computedKeyErrors = errors.filter((e) => e.kind === 'unresolved-computed-key');
+    const otherErrors = errors.filter((e) => !e.kind);
+
+    const causes: string[] = [];
+    if (annotationErrors.length > 0 && resolvedConfig.typeInference === 'require-annotations') {
+      causes.push(
+        `${annotationErrors.length} missing return type annotation(s) ` +
+          `(typeInference: "require-annotations")`
+      );
+    }
+    if (computedKeyErrors.length > 0 && resolvedConfig.onUnresolvedComputedKey === 'error') {
+      causes.push(
+        `${computedKeyErrors.length} unresolved computed property name(s) ` +
+          `(onUnresolvedComputedKey: "error")`
+      );
+    }
+
+    if (causes.length > 0) {
       throw new Error(
-        `[graphql-codegen-apollo-typepolicies] Found ${errors.length} error(s) while parsing type policies. ` +
-          `All read functions must have explicit return type annotations when using typeInference: "require-annotations".`
+        `[graphql-codegen-apollo-typepolicies] Failing the build: ${causes.join(' and ')}.`
+      );
+    }
+
+    // No fatal causes matched the current config — surface uncategorized
+    // errors loudly without failing, matching legacy behavior.
+    if (otherErrors.length > 0 && resolvedConfig.debug) {
+      console.error(
+        `[graphql-codegen-apollo-typepolicies] ${otherErrors.length} unclassified error(s) ` +
+          `logged above; continuing with partial output.`
       );
     }
   }

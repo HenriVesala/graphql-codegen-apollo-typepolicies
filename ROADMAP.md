@@ -40,10 +40,11 @@ Notes:
 
 Reference: https://www.apollographql.com/docs/react/data/typescript#signature-styles-classic-and-modern
 
-### Computed property name resolution
+### Richer computed property name resolution
 
-Currently, computed property names like `{ [FIELD]: { read(...) } }` are skipped with a warning. The plugin could follow the binding via ts-morph's symbol resolution to determine the literal value when `FIELD` resolves to a string constant — handling the common case (`const FIELD = 'createdAt'`) without trying to be a full evaluator. Lower priority since the workaround (use a literal key) is trivial.
+Local `const` and imported `const` bindings to string literals already resolve. Remaining cases that could be added:
 
-### Default export support
+- **Template literals with substitutions**: `` { [`${PREFIX}At`]: ... } ``. Requires evaluating template parts and interpolations.
+- **Member access**: `const KEYS = { createdAt: 'createdAt' as const }; { [KEYS.createdAt]: ... }`. Requires resolving object property access.
 
-The parser only finds named exports — `export default { ... }` is not detected. Adding default-export resolution would let users skip the `typePoliciesExport` config option for the most common Apollo Client setup pattern. Straightforward to implement; the question is whether to also let `typePoliciesExport: 'default'` (or similar) opt into it explicitly, or auto-detect when no named export matches.
+Neither is high priority — the current behavior (loud warning + opt-in error mode via `onUnresolvedComputedKey`) makes the gap safe to live with, and the workaround is to use a literal key.
